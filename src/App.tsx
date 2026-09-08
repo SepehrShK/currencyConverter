@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
@@ -24,7 +24,7 @@ const App = () => {
     const cached = localStorage.getItem("currentPrice");
     if (cached) {
       const cachedData: CacheData = JSON.parse(cached);
-      return cachedData.data.data;
+      return cachedData.data?.data ?? [];
     }
     return [];
   });
@@ -32,6 +32,20 @@ const App = () => {
   const [toCurrency, setToCurrency] = useState<Data["data"][number] | null>(null);
   const [amount, setAmount] = useState("");
   const [result, setResult] = useState<number | null>(null);
+
+  const resultRef = useRef<HTMLInputElement>(null);
+
+  const formatNumber = (value: string) => {
+    if (!value) return "";
+
+    const [integer, decimal] = value.split(".");
+
+    const formattedInteger = Number(integer).toLocaleString("en-US");
+
+    return decimal !== undefined
+      ? `${formattedInteger}.${decimal}`
+      : formattedInteger;
+  };
   
   useEffect(() => {
     const getPrice = async (showAlert: boolean) => {
@@ -46,15 +60,12 @@ const App = () => {
         }
       );
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        // throw new Error(`API Error: ${response.status}`);
+        alert("لطفا دقایقی دیگر مجدداً تلاش کنید")
       }
       const data: Data = await response.json();
       setOptions(data.data);
       
-      // const newPrice: number = data.data.find((item) => item.key === "usd-exchange-rate")!.rate
-      // setDollarPerToman(newPrice)
-      // setRial(newPrice * 10)
-      // setDollar(1)
 
       // caching time of request and price value
       const cache: CacheData = {
@@ -119,7 +130,7 @@ const App = () => {
               }}
               renderInput={(params) => <TextField
                 {...params}
-                label="از"
+                label="ارز مبدا"
               />}
             />
           </div>
@@ -145,34 +156,80 @@ const App = () => {
               }}
               renderInput={(params) => <TextField
                 {...params}
-                label="به"
+                label="ارز مقصد"
               />}
             />
           </div>
         </div>
-        <TextField
-          label="مبلغ"
-          type="number"
-          value={amount}
-          sx={{my: 3}}
-          onChange={(e) => setAmount(e.target.value)}
-          size="small"
-        />
-        <div> 
-          <Button
-            variant="contained"
-            onClick={() => {
-              if (!fromCurrency || !toCurrency || !amount) {
-                alert("همه فیلدها را پر کنید")
-              }
+        <div className="flex flex-col w-fit gap-6 mx-auto my-6">
+          <div className='w-55'>
+            <TextField
+              label="مبلغ"
+              type="text"
+              slotProps={{
+                htmlInput: {
+                  inputMode: "decimal",
+                },
+              }}
+              value={formatNumber(amount)}
+              sx={{
+                width: "220px",
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "20px",
+                },
+              }}
+              onChange={(e) => {
+                const value = e.target.value.replace(/,/g, "");
 
-              setResult(Number(amount) * fromCurrency!.rate / toCurrency!.rate)
-            }}
-          >
-            تبدیل
-          </Button>
+                if (/^\d*\.?\d*$/.test(value)) {
+                  setAmount(value);
+                }
+              }}
+              size="small"
+              />
+          </div>
+          <div> 
+            <Button
+              variant="contained"
+              sx={{
+                width: "100px",
+                height: "45px",
+                borderRadius: "8px",
+              }}
+              onClick={() => {
+                if (!fromCurrency || !toCurrency || !amount) {
+                  alert("همه فیلدها را پر کنید")
+                  return
+                }
+                setResult(Number(amount) * fromCurrency!.rate / toCurrency!.rate)
+                resultRef.current?.focus();
+              }}
+            >
+              تبدیل
+            </Button>
+          </div>
         </div>
-        <p className='mt-6 mx-10'>مقدار مورد نظر برابر است با: {result !== null ? result.toLocaleString("en-US") : ""}</p>
+        <TextField
+          label="نتیجه"
+          inputRef={resultRef}
+          onMouseDown={(e) => e.preventDefault()}
+          defaultValue={result !== null ? result.toLocaleString("en-US") : ""}
+          sx={{
+            width: "220px",
+            "& .MuiOutlinedInput-root": {
+              borderRadius: "20px",
+            },
+          }}
+          slotProps={{
+            input: {
+              readOnly: true,
+            },
+            inputLabel: {
+              shrink: Boolean(result),
+            },
+          }}
+          size='small'
+        />
       </main>
     </div>
   )
